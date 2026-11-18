@@ -1,0 +1,71 @@
+# Polls every board, exports the static site and deploys it to GitHub Pages.
+# The SQLite database is carried between runs in the Actions cache so change
+# detection (new / closed postings, "caught N minutes after posting") keeps working.
+name: poll-and-publish
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # GitHub may start scheduled runs a few minutes late
+  workflow_dispatch:          # "Run workflow" button for a manual refresh
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: poll-and-publish
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      # Optional repository secrets. Without the key, LLM extraction is skipped.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Restore database
+        uses: actions/cache/restore@v4
+        with:
+          path: jobscout.db
+          key: jobscout-db-${{ github.run_id }}
+          restore-keys: jobscout-db-
+
+      - name: Build
+        run: go build -o bin/jobscout ./cmd/jobscout
+
+      - name: Poll job boards
+        run: ./bin/jobscout poll -concurrency 16
+
+      - name: Extract eligibility for new postings
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: ./bin/jobscout extract -limit 40
+
+      - name: Export static site
+        run: ./bin/jobscout export -dir site
+
+      - name: Save database
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: jobscout.db
+          key: jobscout-db-${{ github.run_id }}
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

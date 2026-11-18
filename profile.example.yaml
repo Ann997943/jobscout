@@ -1,0 +1,15 @@
+# Your profile — copy to profile.yaml and edit.
+graduation: "2028-05"        # expected graduation, YYYY-MM
+degree: bachelors            # bachelors | masters | phd
+needs_sponsorship: true      # true if you need visa sponsorship (e.g. F-1 international student)
+us_citizen: false
+has_clearance: false
+allow_onsite: true           # false = drop postings that are on-site only
+
+# Title keywords (case-insensitive substring). Empty include list = every internship.
+title_include: [software, engineer, developer, backend, frontend, full stack, infrastructure,
+                platform, data, machine learning, ml, ai, research, systems, security, swe, sde]
+title_exclude: [phd, sales, marketing, recruiting, finance, accounting, legal, hr, mechanical, electrical]
+
+# Location substrings; empty = anywhere. Postings without a location always pass.
+locations: []

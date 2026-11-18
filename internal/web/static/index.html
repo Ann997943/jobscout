@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>jobscout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a single scannable feed — summary strip, sticky filter bar, then one row per role. */
+:root {
+  --bg: #f5f6f4; --surface: #ffffff; --raised: #eceeea; --line: #dde0da;
+  --fg: #171a17; --muted: #5f655d; --accent: #1f6b57; --accent-soft: #dcefe8;
+  --ok: #1b7a43; --ok-soft: #e0f2e7; --warn: #8a5b00; --warn-soft: #f8edd4;
+  --bad: #a3352a; --bad-soft: #f7e2de; --fresh: #9a4a0b; --fresh-soft: #fbe9d8;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111412; --surface: #191d1a; --raised: #222723; --line: #2d332e;
+    --fg: #e8ebe6; --muted: #9aa197; --accent: #6fcfae; --accent-soft: #183229;
+    --ok: #74d39c; --ok-soft: #173225; --warn: #eec26a; --warn-soft: #362a12;
+    --bad: #ff9a8b; --bad-soft: #3a1e1a; --fresh: #f3a96a; --fresh-soft: #36230f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111412; --surface: #191d1a; --raised: #222723; --line: #2d332e;
+  --fg: #e8ebe6; --muted: #9aa197; --accent: #6fcfae; --accent-soft: #183229;
+  --ok: #74d39c; --ok-soft: #173225; --warn: #eec26a; --warn-soft: #362a12;
+  --bad: #ff9a8b; --bad-soft: #3a1e1a; --fresh: #f3a96a; --fresh-soft: #36230f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); }
+[hidden] { display: none !important; }
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+.sub { margin: 4px 0 0; color: var(--muted); max-width: 60ch; }
+.asof { font: 13px/1.4 var(--mono); color: var(--muted); }
+
+.summary { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 20px 0 18px; padding: 14px 0; border-block: 1px solid var(--line); }
+.stat { display: flex; align-items: baseline; gap: 8px; }
+.stat b { font: 600 22px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 13px; }
+
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  background: var(--bg); padding-block: 10px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+input[type=search], select, button {
+  font: inherit; font-size: 14px; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+}
+input[type=search] { flex: 1 1 260px; min-width: 0; }
+button { cursor: pointer; }
+button:hover { background: var(--raised); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); cursor: pointer; user-select: none; }
+label.chk input { accent-color: var(--accent); }
+
+.count { font: 13px var(--mono); color: var(--muted); margin: 6px 2px 10px; }
+.list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.job {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 20px;
+  padding: 14px 4px; border-bottom: 1px solid var(--line);
+}
+.job:hover { background: var(--surface); }
+.co { font-weight: 600; font-size: 14px; color: var(--muted); }
+.ti { font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.meta .src { font-family: var(--mono); font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--raised); color: var(--muted); }
+.side { grid-row: 1 / span 4; grid-column: 2; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.p-fresh { background: var(--fresh-soft); color: var(--fresh); }
+.p-eligible { background: var(--ok-soft); color: var(--ok); }
+.p-unknown { background: var(--warn-soft); color: var(--warn); }
+.p-ineligible { background: var(--bad-soft); color: var(--bad); }
+.why { font-size: 13px; color: var(--bad); }
+a.open { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+a.open:hover { text-decoration: underline; }
+.more { display: block; margin: 20px auto 0; }
+.empty, .err { padding: 40px 0; text-align: center; color: var(--muted); }
+.err { color: var(--bad); }
+footer { margin-top: 36px; font-size: 13px; color: var(--muted); max-width: 70ch; }
+
+@media (max-width: 640px) {
+  h1 { font-size: 24px; }
+  .job { grid-template-columns: minmax(0, 1fr); }
+  .side { grid-row: auto; grid-column: 1; flex-direction: row; align-items: center; margin-top: 6px; }
+  .pills { justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>jobscout</h1>
+      <p class="sub">Internship postings from about a thousand company job boards on Greenhouse, Lever and Ashby, newest first.</p>
+    </div>
+    <div class="asof" id="asof">Loading…</div>
+  </header>
+
+  <div class="summary" id="summary" aria-live="polite">
+    <div class="stat"><b id="sOpen">–</b><span>open internships</span></div>
+    <div class="stat"><b id="sMatch">–</b><span>software, data and AI roles</span></div>
+    <div class="stat"><b id="sWeek">–</b><span>posted in the last 7 days</span></div>
+    <div class="stat"><b id="sBoards">–</b><span>company boards checked</span></div>
+  </div>
+
+  <div class="bar">
+    <input type="search" id="q" placeholder="Search company, title or location" autocomplete="off" aria-label="Search">
+    <select id="age" aria-label="Posted within">
+      <option value="0">Any time</option>
+      <option value="1">Posted in the last 24h</option>
+      <option value="3">Posted in the last 3 days</option>
+      <option value="7">Posted in the last 7 days</option>
+      <option value="30">Posted in the last 30 days</option>
+    </select>
+    <div class="seg" id="elig" hidden>
+      <button type="button" data-v="any" aria-pressed="true">All</button>
+      <button type="button" data-v="eligible" aria-pressed="false">Eligible</button>
+      <button type="button" data-v="hide-bad" aria-pressed="false">Hide ineligible</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="onlyMatch" checked> Software, data and AI only</label>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div class="list" id="list"></div>
+  <button class="more" id="more" type="button" hidden>Show 100 more</button>
+
+  <footer>
+    jobscout reads each company's public job-board API, so a role shows up here as soon as the company publishes it. Postings for the same role in several cities are merged into one row. The list is a snapshot taken at the time shown above.
+  </footer>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const PAGE = 100;
+  let jobs = [], shown = PAGE, elig = "any";
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const when = (j) => new Date(j.posted_at || j.first_seen).getTime();
+  function ago(ms, now) {
+    const s = (now - ms) / 1000;
+    if (s < 3600) return Math.max(1, Math.round(s / 60)) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    if (s < 86400 * 60) return Math.round(s / 86400) + "d ago";
+    return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+  function lag(j) {
+    if (!j.new || !j.posted_at) return "";
+    const m = Math.round((new Date(j.first_seen) - new Date(j.posted_at)) / 60000);
+    if (m < 0 || m > 24 * 60) return "";
+    return m < 60 ? "caught " + Math.max(1, m) + "m after posting" : "caught " + Math.round(m / 60) + "h after posting";
+  }
+  const LABEL = { eligible: "Eligible", unknown: "Partly unknown", ineligible: "Not eligible" };
+
+  function chips(e) {
+    if (!e) return [];
+    const c = [];
+    if (e.grad_earliest || e.grad_latest) c.push("grad " + (e.grad_earliest || "?") + " to " + (e.grad_latest || "?"));
+    if (e.season) c.push(e.season);
+    if (e.degree_levels && e.degree_levels.length) c.push(e.degree_levels.join(" / "));
+    if (e.sponsorship && e.sponsorship !== "not_stated") c.push(e.sponsorship.replace(/_/g, " "));
+    if (e.work_mode && e.work_mode !== "not_stated") c.push(e.work_mode);
+    if (e.us_citizenship_required === "yes") c.push("US citizens only");
+    if (e.security_clearance_required === "yes") c.push("clearance required");
+    return c;
+  }
+
+  function filtered(now) {
+    const q = $("q").value.trim().toLowerCase();
+    const days = +$("age").value;
+    const cutoff = days ? now - days * 864e5 : 0;
+    return jobs.filter((j) => {
+      if ($("onlyMatch").checked && !j.title_match) return false;
+      if (elig === "eligible" && j.status !== "eligible") return false;
+      if (elig === "hide-bad" && j.status === "ineligible") return false;
+      if (cutoff && when(j) < cutoff) return false;
+      if (q && !(j.company + " " + j.title + " " + (j.locations || []).join(" ")).toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+
+  function render() {
+    const now = Date.now();
+    const list = filtered(now);
+    $("count").textContent = list.length.toLocaleString() + (list.length === 1 ? " role" : " roles") +
+      (list.length > shown ? ", showing " + shown.toLocaleString() : "");
+    if (!list.length) {
+      $("list").innerHTML = '<div class="empty">No roles match these filters. Try clearing the search or widening the date range.</div>';
+      $("more").hidden = true;
+      return;
+    }
+    $("list").innerHTML = list.slice(0, shown).map((j) => {
+      const locs = j.locations || [];
+      const loc = locs.length ? locs.slice(0, 3).join(" · ") + (locs.length > 3 ? " +" + (locs.length - 3) + " more" : "") : "Location not listed";
+      const posted = (j.posted_at ? "posted " : "seen ") + ago(when(j), now);
+      const c = chips(j.extraction).map((x) => '<span class="chip">' + esc(x) + "</span>").join("");
+      const fresh = (now - when(j)) < 2 * 864e5 ? '<span class="pill p-fresh">New</span>' : "";
+      const status = LABEL[j.status] ? '<span class="pill p-' + j.status + '">' + LABEL[j.status] + "</span>" : "";
+      const why = j.status === "ineligible" && j.reasons ? '<div class="why">' + esc(j.reasons.join("; ")) + "</div>" : "";
+      const l = lag(j);
+      return '<article class="job">' +
+        '<div class="co">' + esc(j.company) + "</div>" +
+        '<div class="ti">' + esc(j.title) + "</div>" +
+        '<div class="meta">' + esc(loc) + " · " + esc(posted) + (l ? " · " + esc(l) : "") +
+          (j.postings > 1 ? " · " + j.postings + " postings" : "") + ' · <span class="src">' + esc(j.ats) + "</span></div>" +
+        (c ? '<div class="chips">' + c + "</div>" : "") + why +
+        '<div class="side"><div class="pills">' + fresh + status + "</div>" +
+          '<a class="open" href="' + esc(j.url) + '" target="_blank" rel="noopener">View posting ↗</a></div>' +
+        "</article>";
+    }).join("");
+    $("more").hidden = list.length <= shown;
+  }
+
+  async function load() {
+    try {
+      const r = await fetch("jobs.json", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const snap = await r.json();
+      jobs = snap.jobs || [];
+      const now = Date.now();
+      $("asof").textContent = "Snapshot " + new Date(snap.generated_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      $("sOpen").textContent = jobs.length.toLocaleString();
+      $("sMatch").textContent = jobs.filter((j) => j.title_match).length.toLocaleString();
+      $("sWeek").textContent = jobs.filter((j) => now - when(j) < 7 * 864e5).length.toLocaleString();
+      $("sBoards").textContent = (snap.boards || 0).toLocaleString();
+      $("elig").hidden = !jobs.some((j) => j.status !== "unextracted");
+      render();
+    } catch (e) {
+      $("asof").textContent = "";
+      $("list").innerHTML = '<div class="err">The job list could not be loaded (' + esc(e.message) + "). Reload the page to try again.</div>";
+    }
+  }
+
+  const reset = () => { shown = PAGE; render(); };
+  $("q").addEventListener("input", reset);
+  $("age").addEventListener("change", reset);
+  $("onlyMatch").addEventListener("change", reset);
+  $("elig").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    elig = b.dataset.v;
+    $("elig").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    reset();
+  });
+  $("more").addEventListener("click", () => { shown += PAGE; render(); });
+  load();
+})();
+</script>
+</body>
+</html>
